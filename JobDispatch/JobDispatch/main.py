@@ -10,6 +10,10 @@ app = FastAPI()
 class DispatchRequest(BaseModel):
     customer_phone: str
 
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+    
 @app.post("/dispatch")
 async def create_dispatch(request: DispatchRequest):
     try:

@@ -53,7 +53,7 @@ class UserData:
         try:
             phone_no = int(phone_no)
             if phone_no in self.Data['Mobile_No'].values:
-                user_data = self.Data.loc[self.Data['Mobile_No'] == phone_no][self.important_fields]
+                user_data = self.Data.loc[self.Data['Mobile_No'] == phone_no]
                 user_info = {
                     "first_name": user_data['F_Name'].item(),
                     "last_name": user_data['L_Name'].item(),
@@ -71,13 +71,18 @@ class UserData:
                     "balance_to_pay": user_data['Current_balance'].item(),
                     "payment_mode": user_data['Repayment_mode'].item(),
                     "late_payment": user_data['No_of_late_payments'].item(),
-                    "last_date": user_data['Date_of_last_payment'].item()
+                    "last_date": user_data['Date_of_last_payment'].item(),
+                    "due_date": user_data['Next_due_date'].item(),
+                    "pending_days": user_data['Pending_days'].item(),
+                    "minimum_due_amount": user_data['Minimum_amount_due'].item(),
+                    "late_fees": user_data["Late_Fees"].item(),
+                    "emi_eligible": user_data["Eligible_for_EMI"].item()
                 }
                 return user_info
             else:
                 print('User does not exist.')
                 return {"Error": "User does not exist."}
-        except (KeyError,TypeError) as e:
+        except (TypeError) as e:
             print(f'Such a Phone Number does not exist in {self.file_path}')
             return {}
 
