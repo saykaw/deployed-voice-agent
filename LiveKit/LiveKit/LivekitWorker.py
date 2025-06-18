@@ -46,6 +46,7 @@ from livekit.plugins import (
     silero
 )
 from livekit.plugins.elevenlabs import VoiceSettings
+from LogMetrics import upload_file_to_blob
 
 
 #_________________________________________Defining the Environment Variables______________________________________
@@ -275,11 +276,18 @@ class VoiceAgent(Agent):
         logger.info(f"\n\n------------------Ending the call/ Terminating Room---------------------\n\n")
 
         job_ctx = get_job_context()
-        await job_ctx.api.room.delete_room(
-            api.DeleteRoomRequest(
-                room=job_ctx.room.name,
+        try:
+            await job_ctx.api.room.delete_room(
+                api.DeleteRoomRequest(
+                    room=job_ctx.room.name,
+                )
             )
-        )
+        except api.TwirpError as e:
+            logger.error(
+                f"The following error occurred while deleting the room: {e.message}, "
+                f"SIP status: {e.metadata.get('sip_status_code')} "
+                f"{e.metadata.get('sip_status')}"
+            )
 
 
     @function_tool()
@@ -431,9 +439,17 @@ async def entrypoint(ctx: JobContext):
         call_metrics = json.dumps(Metrics, indent=4, default=serialize_metrics) #JSON format of all metrics for the current session
 
         dt_ist = datetime.datetime.now()
-        filename = f"{phone}_CallMetrics_{dt_ist.day}-{dt_ist.strftime('%B')}-{dt_ist.year}T{dt_ist.strftime('%H_%M')}.txt"
+        filename = f"{phone}_CallMetrics_{dt_ist.day}-{dt_ist.strftime('%B')}-{dt_ist.year}T{dt_ist.strftime('%H_%M')}"
         save_to_file(file_content=call_metrics, filename=filename)
-        await upload_to_blob_content(call_metrics, filename)
+        print("\nFile is saved in the livekit container!!!\n")
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'log_metrics', f"{filename}.txt")
+        print(f"File path: {file_path}")
+        try:
+            await upload_file_to_blob(file_path=file_path, blob_name=f"{filename}.txt")
+
+        except Exception as e:
+            print(f"Error uploading file: {e}")
+
         await session.aclose()
         
 
