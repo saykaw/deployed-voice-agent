@@ -174,13 +174,38 @@ class Database:
         }
         return msg
 
+    # def add_convo(self, ref, agent, msg):
+    #     response = self.supabase.table("users").select("*").eq("phone", ref).execute()
+    #     if not response.data:
+    #         raise Exception("User does not exist")
+
+    #     user_data = response.data[0]
+        
+    #     if agent == "voice":
+    #         user_data["call_transcripts"].append(msg)
+    #         self.supabase.table("users").update({
+    #             "call_transcripts": user_data["call_transcripts"]
+    #         }).eq("phone", ref).execute()
+    #     elif agent == "whatsapp":
+    #         user_data["whatsapp_messages"].append(msg)
+    #         self.supabase.table("users").update({
+    #             "whatsapp_messages": user_data["whatsapp_messages"]
+    #         }).eq("phone", ref).execute()
+    #     else:
+    #         raise Exception("Invalid Agent")
     def add_convo(self, ref, agent, msg):
         response = self.supabase.table("users").select("*").eq("phone", ref).execute()
         if not response.data:
             raise Exception("User does not exist")
 
         user_data = response.data[0]
-        
+
+        if isinstance(msg, list):
+            try:
+                msg = json.dumps(msg) 
+            except Exception as e:
+                raise Exception(f"Message not serializable: {e}")
+
         if agent == "voice":
             user_data["call_transcripts"].append(msg)
             self.supabase.table("users").update({
@@ -193,6 +218,7 @@ class Database:
             }).eq("phone", ref).execute()
         else:
             raise Exception("Invalid Agent")
+
 
     def get_convo(self, ref, agent):
         response = self.supabase.table("users").select("*").eq("phone", ref).execute()
