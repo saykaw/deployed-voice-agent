@@ -1,5 +1,8 @@
 #In-built Python Libraries____________________________________
 import logging
+
+from sqlalchemy import false
+
 logger = logging.getLogger("voice-agent")
 logger.setLevel(logging.INFO)
 
@@ -47,6 +50,7 @@ from livekit.plugins import (
 )
 from livekit.plugins.elevenlabs import VoiceSettings
 from LogMetrics import upload_file_to_blob
+import aiofiles
 
 
 #_________________________________________Defining the Environment Variables______________________________________
@@ -113,19 +117,19 @@ class VoiceAgent(Agent):
             - If wrong number → "माफ़ कीजिए!" → End call.
             - If busy/unavailable → "धन्यवाद। मैं वापस कॉल करूँगी।" → End call.
             2. Payment Reminder:
-            "आपके क्रेडिट कार्ड के payment की ड्यू डेट {due_date} है। अभी {pending_days} दिन बाकी हैं। कृपया {outstanding_amount} रुपये समय पर clear करें।"
+            "आपके क्रेडिट कार्ड के payment की ड्यू डेट {due_date} है। अभी {pending_days} दिन बाकी हैं। कृपया {outstanding_amount} समय पर clear करें।"
             3. Willing to Pay Full Amount:
-            "मैं आपके account को अपडेट करूँगी कि आप {outstanding_amount} रुपये का payment {due_date} से पहले ऐप के जरिए करेंगे, क्या यह सही है?"
+            "मैं आपके account को अपडेट करूँगी कि आप {outstanding_amount} का payment {due_date} से पहले ऐप के जरिए करेंगे, क्या यह सही है?"
             - If yes → End call.
             - If no → Proceed to 4.
             4. Unwilling to Pay Full:
-            "समझ सकती हूँ कि आप पूरा payment नहीं कर पा रहे हैं, लेकिन कृपया कम से कम minimum amount {minimum_due_amount} रुपये का payment करें ताकि लेट फीस से बच सकें और आपकी क्रेडिट हिस्ट्री भी affect न हो।"
-            - If agrees → "मैं आपके account को अपडेट करूँगी कि आप minimum amount {minimum_due_amount} रुपये {due_date} से पहले ऐप के जरिए करेंगे।" → End call.
+            "समझ सकती हूँ कि आप पूरा payment नहीं कर पा रहे हैं, लेकिन कृपया कम से कम minimum amount {minimum_due_amount} का payment करें ताकि लेट फीस से बच सकें और आपकी क्रेडिट हिस्ट्री भी affect न हो।"
+            - If agrees → "मैं आपके account को अपडेट करूँगी कि आप minimum amount {minimum_due_amount}, {due_date} से पहले ऐप के जरिए करेंगे।" → End call.
             - If no → Proceed to 5.
             5. Unwilling to Pay Any Amount:
             "आपको पेमेंट करने में क्या problem है?"
             - If EMI eligible: "आपके account में EMI का option है। क्या आप इसे लेना चाहेंगे?"
-            -- If yes → "मैं आपके account को अपडेट करूँगी कि आप EMI का option choose करने में interested हैं। लेकिन फिर भी आप minimum due amount {minimum_due_amount} रुपये जल्द से जल्द clear करें ताकि आपकी क्रेडिट हिस्ट्री affect न हो।" → End call.
+            -- If yes → "मैं आपके account को अपडेट करूँगी कि आप EMI का option choose करने में interested हैं। लेकिन फिर भी आप minimum due amount {minimum_due_amount} जल्द से जल्द clear करें ताकि आपकी क्रेडिट हिस्ट्री affect न हो।" → End call.
             - If EMI not eligible and asked:
             -- "Unfortunately, इस समय EMI option आपके लिए उपलब्ध नहीं है। लेकिन आप payment करने के लिए दूसरे options को देखें ताकि लेट फीस और interest चार्जेस से बच सकें।" → End call.
             6. Call Closing:
@@ -212,11 +216,11 @@ class VoiceAgent(Agent):
             - What is my due date? → {due_date}
             - What is current date? → Use 'current_date_time' function to get 'date' 
             - What are pending days? → {pending_days}
-            - What is my late fees? → Rs.{late_fees}
+            - What is my late fees? → {late_fees}
             - What is interest rate? → {interest_rate}
             - Am I eligible for EMI? → {emi_eligible}
-            - What is my outstanding amount? → Rs.{outstanding_amount}
-            - What is my minimum due amount? → Rs.{minimum_due_amount}
+            - What is my outstanding amount? → {outstanding_amount}
+            - What is my minimum due amount? → {minimum_due_amount}
             - Where are you calling from? → "One Card"
             - Can I pay using net banking? → "No, payment can be done through app only. If you need any assistance, we can arrange a call back and end the call."
             - How can I make payment? → "You can make the payment through app."
@@ -241,7 +245,7 @@ class VoiceAgent(Agent):
                 ),
             ]),
             tts=elevenlabs.TTS(
-                voice_id="wlmwDR77ptH6bKHZui0l",
+                voice_id="JNaMjd7t4u3EhgkVknn3",
                 model="eleven_turbo_v2_5",
                 voice_settings=VoiceSettings(
                     speed=1.1,
@@ -327,9 +331,11 @@ class VoiceAgent(Agent):
         """
 
         await ctx.session.generate_reply(
-            instructions="""Gracefully end the call according to communication rules.
-                         If call ending due to wrong number, apologize."""
+            instructions="""Gracefully end the call.
+                         If call ending due to wrong number, apologize.""",
+            allow_interruptions=False
         )
+
         current_speech = ctx.session.current_speech
         if current_speech:
             await current_speech.wait_for_playout()
@@ -368,9 +374,9 @@ async def entrypoint(ctx: JobContext):
         role='system',
         content=f"""
             You are talking to our customer named {first_name} {last_name}.
-            They have a total outstandiing loan repayment balance of Rupees {outstanding_amount}.
-            According to their agreement they need to pay Rupees {installment} as monthly installment.
-            
+            They have a total outstandiing loan repayment balance of {outstanding_amount}.
+            According to their agreement they need to pay {installment} as monthly installment.
+
             Here are the previous conversation summaries with the customer on WhatsApp and Phone Call.
             Use these conversation summaries for additional context if necessary:
             
@@ -435,22 +441,33 @@ async def entrypoint(ctx: JobContext):
 
 
     async def store_metrics():
-        print("\nStoring Metrics\n")
-        call_metrics = json.dumps(Metrics, indent=4, default=serialize_metrics) #JSON format of all metrics for the current session
-
-        dt_ist = datetime.datetime.now()
-        filename = f"{phone}_CallMetrics_{dt_ist.day}-{dt_ist.strftime('%B')}-{dt_ist.year}T{dt_ist.strftime('%H_%M')}"
-        save_to_file(file_content=call_metrics, filename=filename)
-        print("\nFile is saved in the livekit container!!!\n")
-        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'log_metrics', f"{filename}.txt")
-        print(f"File path: {file_path}")
         try:
-            await upload_file_to_blob(file_path=file_path, blob_name=f"{filename}.txt")
+            print("\nStoring Metrics\n")
+            call_metrics = json.dumps(Metrics, indent=4, default=serialize_metrics) #JSON format of all metrics for the current session
+
+            dt_ist = datetime.datetime.now()
+            filename = f"{phone}_CallMetrics_{dt_ist.day}-{dt_ist.strftime('%B')}-{dt_ist.year}T{dt_ist.strftime('%H_%M')}"
+            file_path = await save_to_file(file_content=call_metrics, filename=filename)  # Await and get path            
+            print(f"File is saved in the livekit container.")
+            upload_task = asyncio.create_task(upload_file_to_blob(file_path=file_path, blob_name=f"{filename}.txt", max_retries=3))
+            shielded_task = asyncio.shield(upload_task)
+            print(f"Uploading file {filename}.txt to Azure Blob Storage.")
+
+            try:
+                await shielded_task
+
+            except asyncio.CancelledError:
+                print("Upload task was cancelled, but shielded. Waiting for completion.")
+                await upload_task  # Ensure the upload completes despite cancellation
+
+            os.remove(file_path)
+            print(f"File {filename}.txt uploaded to Azure Blob Storage and removed from container.")
 
         except Exception as e:
-            print(f"Error uploading file: {e}")
+            print(f"Error during metrics storage: {e}")
 
-        await session.aclose()
+        finally:    
+            await session.aclose()
         
 
     ctx.add_shutdown_callback(store_history)
@@ -501,6 +518,7 @@ if __name__ == "__main__":
             agent_name="Predixion-Voice-Agent",
             ws_url=LIVEKIT_URL,
             api_key=LIVEKIT_API_KEY,
-            api_secret=LIVEKIT_API_SECRET
+            api_secret=LIVEKIT_API_SECRET,
+            shutdown_process_timeout=20
         )
     )

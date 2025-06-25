@@ -67,7 +67,4 @@ async def create_explicit_dispatch(customer_phone : int):
     await lkapi.aclose()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Dispatch a job with a customer phone number")
-    parser.add_argument('customer_phone', type=str, help="10-digit customer phone number")
-    args = parser.parse_args()
-    asyncio.run(create_explicit_dispatch(customer_phone=args.customer_phone))
+    asyncio.run(create_explicit_dispatch(customer_phone=9324082517))
