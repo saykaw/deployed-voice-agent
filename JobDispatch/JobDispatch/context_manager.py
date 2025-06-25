@@ -7,6 +7,7 @@ from datetime import datetime
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
+from clean_variables import money_to_words, date_to_words
 import RAGer as rag
 
 class UserData:
@@ -59,23 +60,23 @@ class UserData:
                     "last_name": user_data['L_Name'].item(),
                     "phone_no": user_data['Mobile_No'].item(),
                     "gender": user_data['Gender'].item(),
-                    "income_in_inr": user_data['Income'].item(),
+                    "income_in_inr": money_to_words(user_data['Income'].item()),
                     "credit_score": user_data['Bureau_score'].item(),
                     "loan_type": user_data['Loan_type'].item(),
-                    "loan_amount": user_data['Loan_amount'].item(),
-                    "interest_rate": user_data['Interest_Rate'].item(),
-                    "process_fee": user_data['Loan_Processing_Fee'].item(),
-                    "installment": user_data['Installment_Amount'].item(),
-                    "start_date": user_data['Repayment_Start_Date'].item(),
-                    "tenure": user_data['Repayment_tenure'].item(),
-                    "balance_to_pay": user_data['Current_balance'].item(),
+                    "loan_amount": money_to_words(user_data['Loan_amount'].item()),
+                    "interest_rate": f"{user_data['Interest_Rate'].item()} percent",
+                    "process_fee": money_to_words(user_data['Loan_Processing_Fee'].item()),
+                    "installment": money_to_words(user_data['Installment_Amount'].item()),
+                    "start_date": date_to_words(user_data['Repayment_Start_Date'].item()),
+                    "tenure": f"{user_data['Repayment_tenure'].item()} months",
+                    "balance_to_pay": money_to_words(user_data['Current_balance'].item()),
                     "payment_mode": user_data['Repayment_mode'].item(),
                     "late_payment": user_data['No_of_late_payments'].item(),
-                    "last_date": user_data['Date_of_last_payment'].item(),
-                    "due_date": user_data['Next_due_date'].item(),
+                    "last_date": date_to_words(user_data['Date_of_last_payment'].item()),
+                    "due_date": date_to_words(user_data['Next_due_date'].item()),
                     "pending_days": user_data['Pending_days'].item(),
-                    "minimum_due_amount": user_data['Minimum_amount_due'].item(),
-                    "late_fees": user_data["Late_Fees"].item(),
+                    "minimum_due_amount": money_to_words(user_data['Minimum_amount_due'].item()),
+                    "late_fees": money_to_words(user_data["Late_Fees"].item()),
                     "emi_eligible": user_data["Eligible_for_EMI"].item()
                 }
                 return user_info
@@ -85,11 +86,7 @@ class UserData:
         except (TypeError) as e:
             print(f'Such a Phone Number does not exist in {self.file_path}')
             return {}
-
-    def fetch_info(self,query):
-        result = rag.fetch_query(query)
-        return result
-
+            
 # class Database:
 #     def __init__(self):
 #         self.cred = credentials.Certificate("./conversational-ai-ab55c-firebase-adminsdk-fbsvc-e19783f081.json")
@@ -144,7 +141,6 @@ class UserData:
 #         latest_conversation = conversation[-10:]  # Slicing the list
 #         return latest_conversation
 
-
 class Database:
     def __init__(self):
         url = os.environ.get("SUPABASE_URL")
@@ -152,7 +148,7 @@ class Database:
         self.supabase: Client = create_client(url, key)
 
     def init_user(self, phone: str, wa_id=None, chat_id=None, name=None):
-        response = self.supabase.table("users").select("*").eq("phone", phone).execute()
+        response = self.supabase.table("agent-users").select("*").eq("phone", phone).execute()
         
         if not response.data: 
             data = {
@@ -163,7 +159,7 @@ class Database:
                 "whatsapp_messages": [],
                 "call_transcripts": []
             }
-            self.supabase.table("users").insert(data).execute()
+            self.supabase.table("agent-users").insert(data).execute()
         
         return phone 
 
@@ -173,55 +169,43 @@ class Database:
             "timestamp": time.isoformat() if isinstance(time, datetime) else time
         }
         return msg
-
-    # def add_convo(self, ref, agent, msg):
-    #     response = self.supabase.table("users").select("*").eq("phone", ref).execute()
-    #     if not response.data:
-    #         raise Exception("User does not exist")
-
-    #     user_data = response.data[0]
-        
-    #     if agent == "voice":
-    #         user_data["call_transcripts"].append(msg)
-    #         self.supabase.table("users").update({
-    #             "call_transcripts": user_data["call_transcripts"]
-    #         }).eq("phone", ref).execute()
-    #     elif agent == "whatsapp":
-    #         user_data["whatsapp_messages"].append(msg)
-    #         self.supabase.table("users").update({
-    #             "whatsapp_messages": user_data["whatsapp_messages"]
-    #         }).eq("phone", ref).execute()
-    #     else:
-    #         raise Exception("Invalid Agent")
+   
     def add_convo(self, ref, agent, msg):
-        response = self.supabase.table("users").select("*").eq("phone", ref).execute()
+        response = self.supabase.table("agent-users").select("*").eq("phone", ref).execute()
         if not response.data:
             raise Exception("User does not exist")
 
         user_data = response.data[0]
-
-        if isinstance(msg, list):
-            try:
-                msg = json.dumps(msg) 
-            except Exception as e:
-                raise Exception(f"Message not serializable: {e}")
-
         if agent == "voice":
-            user_data["call_transcripts"].append(msg)
-            self.supabase.table("users").update({
-                "call_transcripts": user_data["call_transcripts"]
-            }).eq("phone", ref).execute()
+            current_transcripts = user_data.get("call_transcripts", [])
+            print(f"Before extend - Current transcripts: {current_transcripts}, New msg: {msg}") 
+            if isinstance(msg, list):
+                current_transcripts.extend(msg)
+            else:
+                print(f"Error: msg is not a list, got {type(msg)}: {msg}")
+                raise ValueError("msg must be a list of message dictionaries")
+            print(f"After extend - Updated transcripts: {current_transcripts}")  
+            try:
+                self.supabase.table("agent-users").update({
+                    "call_transcripts": current_transcripts
+                }).eq("phone", ref).execute()
+            except Exception as e:
+                print(f"Supabase update failed: {e}")
+                raise
         elif agent == "whatsapp":
-            user_data["whatsapp_messages"].append(msg)
-            self.supabase.table("users").update({
-                "whatsapp_messages": user_data["whatsapp_messages"]
+            current_messages = user_data.get("whatsapp_messages", [])
+            if isinstance(msg, list):
+                current_messages.extend(msg)
+            else:
+                raise ValueError("msg must be a list of message dictionaries")
+            self.supabase.table("agent-users").update({
+                "whatsapp_messages": current_messages
             }).eq("phone", ref).execute()
         else:
             raise Exception("Invalid Agent")
 
-
     def get_convo(self, ref, agent):
-        response = self.supabase.table("users").select("*").eq("phone", ref).execute()
+        response = self.supabase.table("agent-users").select("*").eq("phone", ref).execute()
         if not response.data:
             raise Exception("User does not exist")
 
