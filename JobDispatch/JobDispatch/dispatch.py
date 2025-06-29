@@ -38,6 +38,8 @@ async def create_explicit_dispatch(customer_phone: str) -> dict:
         'emi_eligible': user_info['emi_eligible'],
         'whatsapp_summary': user_info['whatsapp_summary'],
         'call_summary': user_info['call_summary'],
+        'use_context' : False,
+
     }
 
     lkapi = api.LiveKitAPI(
