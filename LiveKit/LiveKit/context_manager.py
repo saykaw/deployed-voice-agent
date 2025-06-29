@@ -86,61 +86,6 @@ class UserData:
         result = rag.fetch_query(query)
         return result
 
-# class Database:
-#     def __init__(self):
-#         self.cred = credentials.Certificate("./conversational-ai-ab55c-firebase-adminsdk-fbsvc-e19783f081.json")
-#         try:
-#             firebase_admin.initialize_app(self.cred)
-#         except ValueError as e:
-#             print('Firebase App already Initialized')
-#         self.db = firestore.client()
-
-#     def init_user(self,phone: str, wa_id=None, chat_id=None, name=None):
-#         doc_ref = self.db.collection("testing").document(phone)
-#         if not doc_ref.get().exists:
-#             data = {
-#                 "whatsapp_id": wa_id,
-#                 "id": chat_id,
-#                 "phone": phone,
-#                 "name": name,
-#                 "whatsapp_messages": [],
-#                 "call_transcripts": []
-#             }
-#             self.db.collection("testing").document(phone).set(data)
-
-#         return self.db.collection("testing").document(phone)
-
-#     def payload(self, name, text, time):
-#         msg = {
-#             f"{name}": str(text),
-#             "timestamp": time
-#         }
-#         return msg
-
-#     def add_convo(self, ref, agent, msg):
-#         if agent == 'voice':
-#             ref.update({"call_transcripts": firestore.ArrayUnion(msg)})
-#         elif agent == 'whatsapp':
-#             ref.update({"whatsapp_messages": firestore.ArrayUnion(msg)})
-#         else:
-#             raise Exception('Invalid Agent')
-
-#     def get_convo(self, ref, agent):
-#         if agent == 'voice':
-#             conversation = ref.get().to_dict()['call_transcripts']
-#         elif agent == 'whatsapp':
-#             conversation = ref.get().to_dict()['whatsapp_messages']
-#         else:
-#             raise Exception('Invalid Agent')
-
-#         for msg in conversation:
-#             if 'timestamp' in msg:
-#                 del msg['timestamp']
-
-#         latest_conversation = conversation[-10:]  # Slicing the list
-#         return latest_conversation
-
-
 class Database:
     def __init__(self):
         url = os.environ.get("SUPABASE_URL")
@@ -178,13 +123,13 @@ class Database:
         user_data = response.data[0]
         if agent == "voice":
             current_transcripts = user_data.get("call_transcripts", [])
-            print(f"Before extend - Current transcripts: {current_transcripts}, New msg: {msg}")  # Debug
+            # print(f"Before extend - Current transcripts: {current_transcripts}, New msg: {msg}")  # Debug
             if isinstance(msg, list):
                 current_transcripts.extend(msg)
             else:
                 print(f"Error: msg is not a list, got {type(msg)}: {msg}")
                 raise ValueError("msg must be a list of message dictionaries")
-            print(f"After extend - Updated transcripts: {current_transcripts}")  # Debug
+            # print(f"After extend - Updated transcripts: {current_transcripts}")  # Debug
             try:
                 self.supabase.table("agent-users").update({
                     "call_transcripts": current_transcripts

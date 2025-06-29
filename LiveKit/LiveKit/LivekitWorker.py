@@ -66,6 +66,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION")
+SIP_TRUNK_ID = os.getenv("SIP_TRUNK_ID")
 
 
 #_________________________________________This class defines the Voice Agent_______________________________________
@@ -368,23 +369,31 @@ async def entrypoint(ctx: JobContext):
     phone = metadata['phone']  # Ex. +91987654321
     customer = f'{first_name} {last_name}'
 
+    previous_context_flag = metadata['use_context']
+
+    #--------------Context Management- Provide previous conversation context to Agent
+    initial_context = f"""
+            You are talking to our customer named {first_name} {last_name}.
+            They have a total outstandiing loan repayment balance of {outstanding_amount}.
+            According to their agreement they need to pay {installment} as monthly installment.
+    """
+    if previous_context_flag:
+        initial_context = f"""
+            {initial_context}
+
+            Refer to the following previous conversation's context to start this conversation:
+            {call_summary}
+            
+            Acknowledge the last interaction naturally. Do not repeat the entire conversation — 
+            summarize briefly in a polite, human-like manner before continuing with the current objective.
+    """
 
     initial_ctx = ChatContext()
     initial_ctx.add_message(
         role='system',
-        content=f"""
-            You are talking to our customer named {first_name} {last_name}.
-            They have a total outstandiing loan repayment balance of {outstanding_amount}.
-            According to their agreement they need to pay {installment} as monthly installment.
-
-            Here are the previous conversation summaries with the customer on WhatsApp and Phone Call.
-            Use these conversation summaries for additional context if necessary:
-            
-            WhatsApp Conversation Summary: {wa_summary}
-            
-            Phone Call Conversation Summary: {call_summary}
-    """
+        content=initial_context
     )
+
 
     agent = VoiceAgent(metadata=metadata,chat_ctx=initial_ctx)      #Initializing Worker Agent
 
@@ -489,7 +498,7 @@ async def entrypoint(ctx: JobContext):
             api.CreateSIPParticipantRequest
             (
                 room_name=ctx.room.name,
-                sip_trunk_id='ST_udiSagMKGZKr',
+                sip_trunk_id=SIP_TRUNK_ID,
                 sip_call_to=phone,
                 participant_identity=customer,
                 wait_until_answered=True
@@ -519,6 +528,6 @@ if __name__ == "__main__":
             ws_url=LIVEKIT_URL,
             api_key=LIVEKIT_API_KEY,
             api_secret=LIVEKIT_API_SECRET,
-            shutdown_process_timeout=20
+            shutdown_process_timeout=15
         )
     )
